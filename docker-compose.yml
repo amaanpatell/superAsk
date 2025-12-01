@@ -1,0 +1,11 @@
+name : "super-ask"
+services: 
+  db:
+    image: postgres:latest
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=Amaan
+      - POSTGRES_DB=super_ask_db
+    ports:
+      - "5432:5432"
+    restart: always
