@@ -1,8 +1,6 @@
 "use client";
 import { Button } from "@/components/ui/button";
 import { signIn } from "@/lib/auth-client";
-import { Chrome } from "lucide-react";
-import Image from "next/image";
 
 const Page = () => {
   return (
