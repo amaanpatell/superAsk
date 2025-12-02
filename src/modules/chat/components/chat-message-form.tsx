@@ -1,10 +1,17 @@
 "use client";
+
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
+import { useAIModels } from "@/modules/ai-agent/hook/ai-agent";
 import { Send } from "lucide-react";
 import React, { useEffect, useState } from "react";
+import { ModelSelector } from "./model-selector";
 
 const ChatMessageForm = ({ initialMessage, onMessageChange }: any) => {
+  const { data: models, isPending } = useAIModels();
+
+  const [selectedModel, setSelectedModel] = useState(models?.models[0]?.id);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -41,21 +48,33 @@ const ChatMessageForm = ({ initialMessage, onMessageChange }: any) => {
 
           <div className="flex items-center justify-between gap-2 px-3 py-2 border-t">
             <div className="flex items-center gap-1">
-              <Button variant={"outline"}> Select a Model</Button>
+              {isPending ? (
+                <>
+                  <Spinner />
+                </>
+              ) : (
+                <>
+                  <ModelSelector
+                    models={models?.models}
+                    selectedModelId={selectedModel}
+                    onModelSelect={setSelectedModel}
+                    className="ml-1"
+                  />
+                </>
+              )}
             </div>
 
             <Button
-            type="submit"
-            disabled={!message.trim()}
-            size={"sm"}
-            variant={message.trim() ? "default" : "ghost"}
-            className="h-8 w-8 p-0 rounded-full"
-          >
-            <Send className="h-4 w-4" />
-            <span className="sr-only">Send Message</span>
-          </Button>
+              type="submit"
+              disabled={!message.trim()}
+              size={"sm"}
+              variant={message.trim() ? "default" : "ghost"}
+              className="h-8 w-8 p-0 rounded-full"
+            >
+              <Send className="h-4 w-4" />
+              <span className="sr-only">Send Message</span>
+            </Button>
           </div>
-          
         </div>
       </form>
     </div>
