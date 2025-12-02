@@ -104,7 +104,7 @@ export default function UserButton({
     return new Intl.DateTimeFormat("en-US", {
       month: "long",
       year: "numeric",
-    }).format(new Date(date));
+    }).format(date);
   };
 
   // Avatar sizes
