@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { currentUser } from "@/modules/authentication/actions";
-import Header from "@/modules/authentication/components/header";
+import Header from "@/modules/chat/components/header";
 import ChatSidebar from "@/modules/chat/components/chat-sidebar";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
