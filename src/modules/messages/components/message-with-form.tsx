@@ -43,10 +43,6 @@ const MessageWithForm = ({ chatId }: any) => {
   const { data, isPending } = useGetChatById(chatId);
   const { hasChatBeenTriggered, markChatAsTriggered } = useChatStore();
 
-  // Initialize with data if available, otherwise undefined
-  const [selectedModel, setSelectedModel] = useState(data?.data?.model);
-  const [input, setInput] = useState("");
-
   const hasAutoTriggered = useRef(false);
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -80,18 +76,25 @@ const MessageWithForm = ({ chatId }: any) => {
       });
   }, [data]);
 
+  // Use useMemo to derive the initial model value
+  const initialModel = useMemo(() => data?.data?.model, [data?.data?.model]);
+
+  // Initialize state with the derived value
+  const [selectedModel, setSelectedModel] = useState(initialModel);
+  const [input, setInput] = useState("");
+
   const { stop, messages, status, sendMessage, regenerate } = useChat({
     transport: new DefaultChatTransport({
       api: "/api/chat",
     }),
   });
 
-  // Fixed: Only depend on data, not selectedModel
+  // Sync selectedModel when data loads (only if not already set)
   useEffect(() => {
-    if (data?.data?.model && !selectedModel) {
-      setSelectedModel(data.data.model);
+    if (initialModel && !selectedModel) {
+      setSelectedModel(initialModel);
     }
-  }, [data?.data?.model]); // Remove selectedModel from dependencies
+  }, [initialModel, selectedModel]);
 
   useEffect(() => {
     if (hasAutoTriggered.current) return;
