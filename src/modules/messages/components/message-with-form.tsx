@@ -44,14 +44,15 @@ interface MessageWithFormProps {
 
 interface MessagePart {
   type: string;
-  text: string;
+  text?: string;
+  [key: string]: unknown;
 }
 
 interface ProcessedMessage {
   id: string;
   role: string;
   parts: MessagePart[];
-  createdAt: Date;
+  createdAt?: Date; // Make optional since UIMessage doesn't have it
 }
 
 const MessageWithForm = ({ chatId }: MessageWithFormProps) => {
@@ -191,7 +192,14 @@ const MessageWithForm = ({ chatId }: MessageWithFormProps) => {
   };
 
   const [input, setInput] = useState("");
-  const messageToRender = [...initialMessages, ...messages];
+  const messageToRender = [
+    ...initialMessages,
+    ...messages.map((msg) => ({
+      id: msg.id,
+      role: msg.role,
+      parts: msg.parts || [{ type: "text", text: "" }],
+    })),
+  ];
 
   return (
     <div className="max-w-5xl mx-auto p-6 relative size-full h-[calc(100vh-4rem)] ">
@@ -225,7 +233,7 @@ const MessageWithForm = ({ chatId }: MessageWithFormProps) => {
                                     : "max-w-4xl"
                                 }
                               >
-                                {part.text}
+                                {part.text || ""}
                               </MessageResponse>
                             </MessageContent>
                           </Message>
@@ -239,7 +247,7 @@ const MessageWithForm = ({ chatId }: MessageWithFormProps) => {
                           >
                             <ReasoningTrigger />
                             <ReasoningContent className="mt-2 italic font-light text-muted-foreground">
-                              {part.text}
+                              {part.text || ""}
                             </ReasoningContent>
                           </Reasoning>
                         );
