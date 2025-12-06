@@ -42,19 +42,6 @@ interface MessageWithFormProps {
   chatId: string;
 }
 
-interface MessagePart {
-  type: string;
-  text?: string;
-  [key: string]: unknown;
-}
-
-interface ProcessedMessage {
-  id: string;
-  role: string;
-  parts: MessagePart[];
-  createdAt?: Date; // Make optional since UIMessage doesn't have it
-}
-
 const MessageWithForm = ({ chatId }: MessageWithFormProps) => {
   const { data: models, isPending: isModelLoading } = useAIModels();
   const { data, isPending } = useGetChatById(chatId);
@@ -103,14 +90,12 @@ const MessageWithForm = ({ chatId }: MessageWithFormProps) => {
       );
   }, [data]);
 
-  // Derive the model - this approach avoids setState in useEffect
   const modelFromData = data?.data?.model;
   const [userSelectedModel, setUserSelectedModel] = useState<
     string | undefined
   >(undefined);
-
-  // Use user selection if available, otherwise fall back to data model
   const selectedModel = userSelectedModel ?? modelFromData;
+  const [input, setInput] = useState("");
 
   const { stop, messages, status, sendMessage, regenerate } = useChat({
     transport: new DefaultChatTransport({
@@ -191,15 +176,8 @@ const MessageWithForm = ({ chatId }: MessageWithFormProps) => {
     setUserSelectedModel(model);
   };
 
-  const [input, setInput] = useState("");
-  const messageToRender = [
-    ...initialMessages,
-    ...messages.map((msg) => ({
-      id: msg.id,
-      role: msg.role,
-      parts: msg.parts || [{ type: "text", text: "" }],
-    })),
-  ];
+  // Combine messages without strict typing to avoid conflicts
+  const messageToRender = [...initialMessages, ...messages];
 
   return (
     <div className="max-w-5xl mx-auto p-6 relative size-full h-[calc(100vh-4rem)] ">
@@ -213,49 +191,51 @@ const MessageWithForm = ({ chatId }: MessageWithFormProps) => {
                 </div>
               </>
             ) : (
-              messageToRender.map((message: ProcessedMessage) => (
+              messageToRender.map((message) => (
                 <Fragment key={message.id}>
-                  {message.parts.map((part: MessagePart, i: number) => {
-                    switch (part.type) {
-                      case "text":
-                        return (
-                          <Message
-                            from={
-                              message.role as "user" | "assistant" | "system"
-                            }
-                            key={`${message.id}-${i}`}
-                          >
-                            <MessageContent>
-                              <MessageResponse
-                                className={
-                                  message.role === "user"
-                                    ? "text-white dark:text-primary-foreground"
-                                    : "max-w-4xl"
-                                }
-                              >
+                  {(message.parts || []).map(
+                    (part: { type: string; text?: string }, i: number) => {
+                      switch (part.type) {
+                        case "text":
+                          return (
+                            <Message
+                              from={
+                                message.role as "user" | "assistant" | "system"
+                              }
+                              key={`${message.id}-${i}`}
+                            >
+                              <MessageContent>
+                                <MessageResponse
+                                  className={
+                                    message.role === "user"
+                                      ? "text-white dark:text-primary-foreground"
+                                      : "max-w-4xl"
+                                  }
+                                >
+                                  {part.text || ""}
+                                </MessageResponse>
+                              </MessageContent>
+                            </Message>
+                          );
+
+                        case "reasoning":
+                          return (
+                            <Reasoning
+                              className="max-w-2xl px-4 py-4 border border-muted rounded-md bg-muted/50"
+                              key={`${message.id}-${i}`}
+                            >
+                              <ReasoningTrigger />
+                              <ReasoningContent className="mt-2 italic font-light text-muted-foreground">
                                 {part.text || ""}
-                              </MessageResponse>
-                            </MessageContent>
-                          </Message>
-                        );
+                              </ReasoningContent>
+                            </Reasoning>
+                          );
 
-                      case "reasoning":
-                        return (
-                          <Reasoning
-                            className="max-w-2xl px-4 py-4 border border-muted rounded-md bg-muted/50"
-                            key={`${message.id}-${i}`}
-                          >
-                            <ReasoningTrigger />
-                            <ReasoningContent className="mt-2 italic font-light text-muted-foreground">
-                              {part.text || ""}
-                            </ReasoningContent>
-                          </Reasoning>
-                        );
-
-                      default:
-                        return null;
+                        default:
+                          return null;
+                      }
                     }
-                  })}
+                  )}
                 </Fragment>
               ))
             )}
