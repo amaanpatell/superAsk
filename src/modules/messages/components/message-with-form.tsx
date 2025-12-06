@@ -43,6 +43,7 @@ const MessageWithForm = ({ chatId }: any) => {
   const { data, isPending } = useGetChatById(chatId);
   const { hasChatBeenTriggered, markChatAsTriggered } = useChatStore();
 
+  // Initialize with data if available, otherwise undefined
   const [selectedModel, setSelectedModel] = useState(data?.data?.model);
   const [input, setInput] = useState("");
 
@@ -85,11 +86,12 @@ const MessageWithForm = ({ chatId }: any) => {
     }),
   });
 
+  // Fixed: Only depend on data, not selectedModel
   useEffect(() => {
     if (data?.data?.model && !selectedModel) {
       setSelectedModel(data.data.model);
     }
-  }, [data, selectedModel]);
+  }, [data?.data?.model]); // Remove selectedModel from dependencies
 
   useEffect(() => {
     if (hasAutoTriggered.current) return;
@@ -165,7 +167,7 @@ const MessageWithForm = ({ chatId }: any) => {
     <div className="max-w-5xl mx-auto p-6 relative size-full h-[calc(100vh-4rem)] ">
       <div className="flex flex-col h-full ">
         <Conversation className={"h-full  overflow-y-auto scrollbar-hidden"}>
-          <ConversationContent >
+          <ConversationContent>
             {messageToRender.length === 0 ? (
               <>
                 <div className="flex items-center justify-center h-full text-gray-500">
