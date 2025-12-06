@@ -206,7 +206,7 @@ const ChatSidebar = ({ user, chats }: ChatSidebarProps) => {
         )}
       </div>
 
-      <div className="p-4 flex items-center gap-3 border-t border-sidebar-border">
+      <div className="p-4 flex items-center gap-3 border-t border-border">
         <UserButton user={{ ...user, image: user.image ?? null }} />
         <span className="flex-1 text-sm text-sidebar-foreground truncate">
           {user.email}
