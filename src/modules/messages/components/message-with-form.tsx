@@ -38,7 +38,23 @@ import { useSearchParams, useRouter } from "next/navigation";
 
 import { RotateCcwIcon, StopCircleIcon } from "lucide-react";
 
-const MessageWithForm = ({ chatId }: any) => {
+interface MessageWithFormProps {
+  chatId: string;
+}
+
+interface MessagePart {
+  type: string;
+  text: string;
+}
+
+interface ProcessedMessage {
+  id: string;
+  role: string;
+  parts: MessagePart[];
+  createdAt: Date;
+}
+
+const MessageWithForm = ({ chatId }: MessageWithFormProps) => {
   const { data: models, isPending: isModelLoading } = useAIModels();
   const { data, isPending } = useGetChatById(chatId);
   const { hasChatBeenTriggered, markChatAsTriggered } = useChatStore();
@@ -52,49 +68,54 @@ const MessageWithForm = ({ chatId }: any) => {
     if (!data?.data?.messages) return [];
 
     return data.data.messages
-      .filter((msg: any) => msg.content && msg.content.trim() !== "" && msg.id)
-      .map((msg: any) => {
-        try {
-          const parts = JSON.parse(msg.content);
+      .filter(
+        (msg: { content?: string; id?: string }) =>
+          msg.content && msg.content.trim() !== "" && msg.id
+      )
+      .map(
+        (msg: {
+          id: string;
+          messageRole: string;
+          content: string;
+          createdAt: Date;
+        }) => {
+          try {
+            const parts = JSON.parse(msg.content);
 
-          return {
-            id: msg.id,
-            role: msg.messageRole.toLowerCase(),
-            parts: Array.isArray(parts)
-              ? parts
-              : [{ type: "text", text: msg.content }],
-            createdAt: msg.createdAt,
-          };
-        } catch (error) {
-          return {
-            id: msg.id,
-            role: msg.messageRole.toLowerCase(),
-            parts: [{ type: "text", text: msg.content }],
-            createdAt: msg.createdAt,
-          };
+            return {
+              id: msg.id,
+              role: msg.messageRole.toLowerCase(),
+              parts: Array.isArray(parts)
+                ? parts
+                : [{ type: "text", text: msg.content }],
+              createdAt: msg.createdAt,
+            };
+          } catch (error) {
+            return {
+              id: msg.id,
+              role: msg.messageRole.toLowerCase(),
+              parts: [{ type: "text", text: msg.content }],
+              createdAt: msg.createdAt,
+            };
+          }
         }
-      });
+      );
   }, [data]);
 
-  // Use useMemo to derive the initial model value
-  const initialModel = useMemo(() => data?.data?.model, [data?.data?.model]);
+  // Derive the model - this approach avoids setState in useEffect
+  const modelFromData = data?.data?.model;
+  const [userSelectedModel, setUserSelectedModel] = useState<
+    string | undefined
+  >(undefined);
 
-  // Initialize state with the derived value
-  const [selectedModel, setSelectedModel] = useState(initialModel);
-  const [input, setInput] = useState("");
+  // Use user selection if available, otherwise fall back to data model
+  const selectedModel = userSelectedModel ?? modelFromData;
 
   const { stop, messages, status, sendMessage, regenerate } = useChat({
     transport: new DefaultChatTransport({
       api: "/api/chat",
     }),
   });
-
-  // Sync selectedModel when data loads (only if not already set)
-  useEffect(() => {
-    if (initialModel && !selectedModel) {
-      setSelectedModel(initialModel);
-    }
-  }, [initialModel, selectedModel]);
 
   useEffect(() => {
     if (hasAutoTriggered.current) return;
@@ -165,7 +186,13 @@ const MessageWithForm = ({ chatId }: any) => {
     stop();
   };
 
+  const handleModelSelect = (model: string) => {
+    setUserSelectedModel(model);
+  };
+
+  const [input, setInput] = useState("");
   const messageToRender = [...initialMessages, ...messages];
+
   return (
     <div className="max-w-5xl mx-auto p-6 relative size-full h-[calc(100vh-4rem)] ">
       <div className="flex flex-col h-full ">
@@ -178,9 +205,9 @@ const MessageWithForm = ({ chatId }: any) => {
                 </div>
               </>
             ) : (
-              messageToRender.map((message: any) => (
+              messageToRender.map((message: ProcessedMessage) => (
                 <Fragment key={message.id}>
-                  {message.parts.map((part: any, i: number) => {
+                  {message.parts.map((part: MessagePart, i: number) => {
                     switch (part.type) {
                       case "text":
                         return (
@@ -250,7 +277,7 @@ const MessageWithForm = ({ chatId }: any) => {
                 <ModelSelector
                   models={models?.models}
                   selectedModelId={selectedModel}
-                  onModelSelect={setSelectedModel}
+                  onModelSelect={handleModelSelect}
                 />
               )}
               {status === "streaming" ? (
