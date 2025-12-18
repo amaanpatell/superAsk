@@ -4,6 +4,8 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { useGetChatById } from "@/modules/chat/hooks/chat";
 import { Fragment, useState, useEffect, useMemo, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { RotateCcwIcon, StopCircleIcon } from "lucide-react";
 
 import {
   Reasoning,
@@ -34,26 +36,28 @@ import { Spinner } from "@/components/ui/spinner";
 import { ModelSelector } from "@/modules/chat/components/model-selector";
 import { useAIModels } from "@/modules/ai-agent/hook/ai-agent";
 import { useChatStore } from "@/modules/chat/store/chat-store";
-import { useSearchParams, useRouter } from "next/navigation";
-
-import { RotateCcwIcon, StopCircleIcon } from "lucide-react";
+import { useCreateChat } from "@/modules/chat/hooks/chat";
+import ChatWelcomeTabs from "@/modules/chat/components/chat-welcome-tabs";
 
 interface MessageWithFormProps {
-  chatId: string;
+  chatId?: string | null;
+  userName?: string;
 }
 
-const MessageWithForm = ({ chatId }: MessageWithFormProps) => {
+const MessageWithForm = ({ chatId, userName }: MessageWithFormProps) => {
+  const router = useRouter();
   const { data: models, isPending: isModelLoading } = useAIModels();
-  const { data, isPending } = useGetChatById(chatId);
+  const { data, isPending } = useGetChatById(chatId || "");
   const { hasChatBeenTriggered, markChatAsTriggered } = useChatStore();
+  const { mutateAsync: createChat, isPending: isCreatingChat } =
+    useCreateChat();
 
   const hasAutoTriggered = useRef(false);
   const searchParams = useSearchParams();
-  const router = useRouter();
   const shouldAutoTrigger = searchParams.get("autoTrigger") === "true";
 
   const initialMessages = useMemo(() => {
-    if (!data?.data?.messages) return [];
+    if (!chatId || !data?.data?.messages) return [];
 
     return data.data.messages
       .filter(
@@ -88,13 +92,14 @@ const MessageWithForm = ({ chatId }: MessageWithFormProps) => {
           }
         }
       );
-  }, [data]);
+  }, [data, chatId]);
 
   const modelFromData = data?.data?.model;
   const [userSelectedModel, setUserSelectedModel] = useState<
     string | undefined
   >(undefined);
-  const selectedModel = userSelectedModel ?? modelFromData;
+  const selectedModel =
+    userSelectedModel ?? modelFromData ?? models?.models?.[0]?.id;
   const [input, setInput] = useState("");
 
   const { stop, messages, status, sendMessage, regenerate } = useChat({
@@ -103,7 +108,16 @@ const MessageWithForm = ({ chatId }: MessageWithFormProps) => {
     }),
   });
 
+  // Set default model
   useEffect(() => {
+    if (models?.models && !selectedModel && !modelFromData) {
+      setUserSelectedModel(models.models[0]?.id);
+    }
+  }, [models, selectedModel, modelFromData]);
+
+  // Auto-trigger for existing chats
+  useEffect(() => {
+    if (!chatId) return;
     if (hasAutoTriggered.current) return;
     if (!shouldAutoTrigger) return;
     if (hasChatBeenTriggered(chatId)) return;
@@ -130,8 +144,8 @@ const MessageWithForm = ({ chatId }: MessageWithFormProps) => {
 
     router.replace(`/chat/${chatId}`, { scroll: false });
   }, [
-    shouldAutoTrigger,
     chatId,
+    shouldAutoTrigger,
     selectedModel,
     initialMessages,
     markChatAsTriggered,
@@ -140,7 +154,7 @@ const MessageWithForm = ({ chatId }: MessageWithFormProps) => {
     router,
   ]);
 
-  if (isPending) {
+  if (isPending && chatId) {
     return (
       <div className="flex items-center justify-center h-full">
         <Spinner />
@@ -148,9 +162,26 @@ const MessageWithForm = ({ chatId }: MessageWithFormProps) => {
     );
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!input.trim()) return;
+    if (!selectedModel) return;
 
+    // If no chatId, create new chat first
+    if (!chatId) {
+      try {
+        await createChat({
+          content: input,
+          model: selectedModel,
+        });
+        // Navigation handled by useCreateChat hook
+        setInput("");
+      } catch (error) {
+        console.error("Error creating chat:", error);
+      }
+      return;
+    }
+
+    // Existing chat - send message directly
     sendMessage(
       { text: input },
       {
@@ -176,20 +207,24 @@ const MessageWithForm = ({ chatId }: MessageWithFormProps) => {
     setUserSelectedModel(model);
   };
 
-  // Combine messages without strict typing to avoid conflicts
+  // Combine messages
   const messageToRender = [...initialMessages, ...messages];
+  const isNewChat = !chatId;
+  const showWelcome = isNewChat && messageToRender.length === 0;
 
   return (
-    <div className="max-w-5xl mx-auto p-6 relative size-full h-[calc(100vh-4rem)] ">
-      <div className="flex flex-col h-full ">
-        <Conversation className={"h-full  overflow-y-auto scrollbar-hidden"}>
+    <div className="max-w-5xl mx-auto p-6 relative size-full h-[calc(100vh-4rem)]">
+      <div className="flex flex-col h-full">
+        <Conversation className="h-full overflow-y-auto scrollbar-hidden">
           <ConversationContent>
-            {messageToRender.length === 0 ? (
-              <>
-                <div className="flex items-center justify-center h-full text-gray-500">
-                  Start a conversation...
-                </div>
-              </>
+            {showWelcome ? (
+              <div className="flex flex-col items-center justify-center h-full space-y-10">
+                <ChatWelcomeTabs userName={userName} />
+              </div>
+            ) : messageToRender.length === 0 ? (
+              <div className="flex items-center justify-center h-full text-gray-500">
+                Start a conversation...
+              </div>
             ) : (
               messageToRender.map((message) => (
                 <Fragment key={message.id}>
@@ -282,7 +317,7 @@ const MessageWithForm = ({ chatId }: MessageWithFormProps) => {
                 )
               )}
             </PromptInputTools>
-            <PromptInputSubmit status={status} />
+            <PromptInputSubmit status={isCreatingChat ? "streaming" : status} />
           </PromptInputFooter>
         </PromptInput>
       </div>

@@ -6,10 +6,6 @@ import ChatMessageForm from "./chat-message-form";
 const ChatMessageView = ({ user }: { user: any }) => {
   const [selectedMessage, setSelectedMessage] = useState("");
 
-  const handleSelectMessage = (message: string) => {
-    setSelectedMessage(message);
-  };
-
   const handleMessageChange = () => {
     setSelectedMessage("");
   };
@@ -17,7 +13,6 @@ const ChatMessageView = ({ user }: { user: any }) => {
     <div className="flex flex-col items-center justify-center h-screen space-y-10">
       <ChatWelcomeTabs
         userName={user.name}
-        onMessageSelect={handleSelectMessage}
       />
 
       <ChatMessageForm

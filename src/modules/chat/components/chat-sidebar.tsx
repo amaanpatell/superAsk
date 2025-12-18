@@ -163,7 +163,7 @@ const ChatSidebar = ({ user, chats }: ChatSidebarProps) => {
 
       <div
         className={cn(
-          "flex h-full flex-col border-r border-border bg-sidebar transition-all duration-300 ease-in-out",
+          "flex h-full flex-col border-r border-border bg-sidebar scrollbar-hidden transition-all duration-300 ease-in-out",
           // On mobile: fixed position with overlay behavior
           // On desktop: normal relative positioning
           "fixed md:relative z-50 md:z-auto",
