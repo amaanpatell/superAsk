@@ -98,8 +98,17 @@ const MessageWithForm = ({ chatId, userName }: MessageWithFormProps) => {
   const [userSelectedModel, setUserSelectedModel] = useState<
     string | undefined
   >(undefined);
+  // Get default model - prefer OpenAI
+  const getDefaultModel = () => {
+    if (models?.models) {
+      const openAIModel = models.models.find((m: any) => m.provider === "openai");
+      return openAIModel?.id || models.models[0]?.id;
+    }
+    return undefined;
+  };
+
   const selectedModel =
-    userSelectedModel ?? modelFromData ?? models?.models?.[0]?.id;
+    userSelectedModel ?? modelFromData ?? getDefaultModel();
   const [input, setInput] = useState("");
 
   const { stop, messages, status, sendMessage, regenerate } = useChat({
@@ -108,10 +117,68 @@ const MessageWithForm = ({ chatId, userName }: MessageWithFormProps) => {
     }),
   });
 
-  // Set default model
+  // Combine initial messages with messages from useChat, deduplicating by ID
+  // Prioritize useChat messages (for streaming) over initial messages
+  // This must be before any conditional returns to follow Rules of Hooks
+  const messageToRender = useMemo(() => {
+    const messageMap = new Map<string, any>();
+
+    // Helper function to check if a message has content
+    const hasContent = (msg: any) => {
+      // Check if message has parts with text content
+      if (msg.parts && Array.isArray(msg.parts)) {
+        return msg.parts.some((p: any) => p.text && p.text.trim() !== "");
+      }
+      // Check if message has text property
+      if (msg.text !== undefined) {
+        return msg.text.trim() !== "";
+      }
+      // Check if message has content property
+      if (msg.content) {
+        return msg.content.trim() !== "";
+      }
+      return false;
+    };
+
+    // First, add initial messages (only if they have content)
+    initialMessages.forEach((msg) => {
+      if (msg.id && hasContent(msg)) {
+        messageMap.set(msg.id, msg);
+      }
+    });
+
+    // Then, add/overwrite with messages from useChat
+    // This ensures streaming messages from useChat take priority
+    messages.forEach((msg) => {
+      if (msg.id) {
+        // Always add messages from useChat, even if they seem empty
+        // They might be streaming and updating
+        if (hasContent(msg) || status === "streaming") {
+          messageMap.set(msg.id, msg);
+        }
+      }
+    });
+
+    // Convert back to array and sort by creation time if available
+    return Array.from(messageMap.values()).sort((a, b) => {
+      if (a.createdAt && b.createdAt) {
+        return (
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+      }
+      return 0;
+    });
+  }, [initialMessages, messages, status]);
+
+  // Set default model - prefer OpenAI models
   useEffect(() => {
     if (models?.models && !selectedModel && !modelFromData) {
-      setUserSelectedModel(models.models[0]?.id);
+      // Find first OpenAI model, fallback to first available model
+      const openAIModel = models.models.find((m: any) => m.provider === "openai");
+      const defaultModel = openAIModel || models.models[0];
+      if (defaultModel?.id) {
+        setUserSelectedModel(defaultModel.id);
+      }
     }
   }, [models, selectedModel, modelFromData]);
 
@@ -131,13 +198,30 @@ const MessageWithForm = ({ chatId, userName }: MessageWithFormProps) => {
     hasAutoTriggered.current = true;
     markChatAsTriggered(chatId);
 
+    // Extract the actual text content from the last user message
+    const getMessageText = (msg: any): string => {
+      if (msg.parts && Array.isArray(msg.parts)) {
+        const textParts = msg.parts
+          .filter((p: any) => p.type === "text" && p.text)
+          .map((p: any) => p.text);
+        return textParts.join(" ");
+      }
+      if (msg.text) return msg.text;
+      if (msg.content) return msg.content;
+      return "";
+    };
+
+    const messageText = getMessageText(lastMessage);
+
+    // Send the actual user message content instead of empty string
+    // This ensures the message in state is the real query, not empty
     sendMessage(
-      { text: "" },
+      { text: messageText },
       {
         body: {
           model: selectedModel,
           chatId,
-          skipUserMessage: true,
+          skipUserMessage: true, // API won't save duplicate user message
         },
       }
     );
@@ -207,8 +291,6 @@ const MessageWithForm = ({ chatId, userName }: MessageWithFormProps) => {
     setUserSelectedModel(model);
   };
 
-  // Combine messages
-  const messageToRender = [...initialMessages, ...messages];
   const isNewChat = !chatId;
   const showWelcome = isNewChat && messageToRender.length === 0;
 
@@ -226,58 +308,68 @@ const MessageWithForm = ({ chatId, userName }: MessageWithFormProps) => {
                 Start a conversation...
               </div>
             ) : (
-              messageToRender.map((message) => (
-                <Fragment key={message.id}>
-                  {(message.parts || []).map(
-                    (part: { type: string; text?: string }, i: number) => {
-                      switch (part.type) {
-                        case "text":
-                          return (
-                            <Message
-                              from={
-                                message.role as "user" | "assistant" | "system"
+              messageToRender.map((message) => {
+                // Check if this message is currently streaming
+                const isMessageStreaming =
+                  status === "streaming" &&
+                  message.role === "assistant" &&
+                  messages.some((m) => m.id === message.id);
+
+                // Separate reasoning and text parts for better ordering
+                const parts = message.parts || [];
+                const reasoningParts = parts.filter(
+                  (p: any) => p.type === "reasoning"
+                );
+                const textParts = parts.filter((p: any) => p.type === "text");
+
+                return (
+                  <Fragment key={message.id}>
+                    {/* Render reasoning parts first */}
+                    {reasoningParts.map(
+                      (part: { type: string; text?: string }, i: number) => (
+                        <Reasoning
+                          className="max-w-2xl px-4 py-4 border border-muted rounded-md bg-muted/50"
+                          key={`${message.id}-reasoning-${i}`}
+                          isStreaming={isMessageStreaming}
+                          defaultOpen={true}
+                        >
+                          <ReasoningTrigger />
+                          <ReasoningContent className="mt-2 italic font-light text-muted-foreground">
+                            {part.text || ""}
+                          </ReasoningContent>
+                        </Reasoning>
+                      )
+                    )}
+
+                    {/* Render text parts */}
+                    {textParts.map(
+                      (part: { type: string; text?: string }, i: number) => (
+                        <Message
+                          from={message.role as "user" | "assistant" | "system"}
+                          key={`${message.id}-text-${i}`}
+                        >
+                          <MessageContent>
+                            <MessageResponse
+                              className={
+                                message.role === "user"
+                                  ? "text-white dark:text-primary-foreground"
+                                  : "max-w-4xl"
                               }
-                              key={`${message.id}-${i}`}
                             >
-                              <MessageContent>
-                                <MessageResponse
-                                  className={
-                                    message.role === "user"
-                                      ? "text-white dark:text-primary-foreground"
-                                      : "max-w-4xl"
-                                  }
-                                >
-                                  {part.text || ""}
-                                </MessageResponse>
-                              </MessageContent>
-                            </Message>
-                          );
-
-                        case "reasoning":
-                          return (
-                            <Reasoning
-                              className="max-w-2xl px-4 py-4 border border-muted rounded-md bg-muted/50"
-                              key={`${message.id}-${i}`}
-                            >
-                              <ReasoningTrigger />
-                              <ReasoningContent className="mt-2 italic font-light text-muted-foreground">
-                                {part.text || ""}
-                              </ReasoningContent>
-                            </Reasoning>
-                          );
-
-                        default:
-                          return null;
-                      }
-                    }
-                  )}
-                </Fragment>
-              ))
+                              {part.text || ""}
+                            </MessageResponse>
+                          </MessageContent>
+                        </Message>
+                      )
+                    )}
+                  </Fragment>
+                );
+              })
             )}
             {status === "streaming" && (
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Spinner />
-                <span className="text-sm">AI is thinking...</span>
+                <span className="text-sm">thinking...</span>
               </div>
             )}
           </ConversationContent>

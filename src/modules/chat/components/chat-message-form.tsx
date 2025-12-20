@@ -13,7 +13,16 @@ import { toast } from "sonner";
 const ChatMessageForm = ({ initialMessage, onMessageChange }: any) => {
   const { data: models, isPending } = useAIModels();
 
-  const [selectedModel, setSelectedModel] = useState(models?.models[0]?.id);
+  // Default to OpenAI model if available
+  const getDefaultModel = () => {
+    if (models?.models) {
+      const openAIModel = models.models.find((m: any) => m.provider === "openai");
+      return openAIModel?.id || models.models[0]?.id;
+    }
+    return undefined;
+  };
+
+  const [selectedModel, setSelectedModel] = useState(getDefaultModel());
   const [message, setMessage] = useState("");
 
   const { mutateAsync, isPending: isChatPending } = useCreateChat();
@@ -24,6 +33,17 @@ const ChatMessageForm = ({ initialMessage, onMessageChange }: any) => {
       onMessageChange?.("");
     }
   }, [initialMessage, onMessageChange]);
+
+  // Update default model when models load - prefer OpenAI
+  useEffect(() => {
+    if (models?.models && !selectedModel) {
+      const openAIModel = models.models.find((m: any) => m.provider === "openai");
+      const defaultModel = openAIModel || models.models[0];
+      if (defaultModel?.id) {
+        setSelectedModel(defaultModel.id);
+      }
+    }
+  }, [models, selectedModel]);
 
   const handleSubmit = async (e: any) => {
     try {

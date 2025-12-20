@@ -1,0 +1,26 @@
+{
+  "name": "SuperAsk - AI-Powered Chat Assistant",
+  "short_name": "SuperAsk",
+  "description": "SuperAsk is your intelligent AI chat assistant powered by advanced language models.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#000000",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "any",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "/superAsk.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "utilities"],
+  "lang": "en-US"
+}
+
