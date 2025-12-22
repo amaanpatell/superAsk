@@ -103,9 +103,8 @@ const MessageWithForm = ({ chatId, userName }: MessageWithFormProps) => {
   const [input, setInput] = useState("");
 
   const { stop, messages, status, sendMessage, regenerate } = useChat({
-    transport: new DefaultChatTransport({
-      api: "/api/chat",
-    }),
+    initialMessages: [],
+    api: "/api/chat",
   });
 
   // Set default model
@@ -132,7 +131,7 @@ const MessageWithForm = ({ chatId, userName }: MessageWithFormProps) => {
     markChatAsTriggered(chatId);
 
     sendMessage(
-      { text: "" },
+      { text: null },
       {
         body: {
           model: selectedModel,
